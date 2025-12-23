@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Civil Bingo Online (Admin View)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;500;700&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-image: url('https://images.unsplash.com/photo-1557683316-973673baf926');
+            --primary-color: #007bff;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+        }
+
+        body {
+            font-family: 'Kanit', sans-serif;
+            background: var(--bg-image) no-repeat center center fixed;
+            background-size: cover;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            width: 95%;
+            max-width: 450px;
+            text-align: center;
+        }
+
+        /* ตารางบิงโก */
+        .board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 5px;
+            margin: 15px 0;
+        }
+
+        .cell {
+            aspect-ratio: 1/1;
+            background: #fff;
+            border: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .cell.marked {
+            background-color: var(--danger-color) !important;
+            color: white !important;
+        }
+
+        /* ปุ่มต่างๆ */
+        button {
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .btn-primary { background: var(--primary-color); color: white; margin-top: 10px; }
+        .btn-bingo { background: var(--success-color); color: white; font-size: 1.3rem; margin-top: 10px; }
+        
+        /* สไตล์หน้า Admin */
+        #winner-list { padding: 0; list-style: none; }
+        .winner-item {
+            background: #f0f2f5;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .btn-view { background: #6f42c1; color: white; width: auto; padding: 5px 10px; font-size: 12px; }
+
+        /* Modal สำหรับดูตารางผู้ชนะ */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="login-section">
+        <h2>BINGO CIVIL</h2>
+        <input type="text" id="username" placeholder="ชื่อของคุณ..." style="width:90%; padding:10px; margin-bottom:10px; border-radius:10px; border:1px solid #ccc;">
+        <button class="btn-primary" onclick="login()">เข้าสู่ระบบ</button>
+    </div>
+
+    <div id="game-section" style="display: none;">
+        <h3>ผู้เล่น: <span id="display-name"></span></h3>
+        <div id="bingo-board" class="board"></div>
+        <button class="btn-bingo" onclick="checkBingo()">BINGO!</button>
+    </div>
+
+    <div id="admin-section" style="display: none;">
+        <h2 style="color: var(--danger-color);">Admin Dashboard</h2>
+        <div id="winner-list"></div>
+        <button onclick="resetGame()" style="background:#6c757d; color:white; margin-top:10px;">ล้างข้อมูลทั้งหมด</button>
+    </div>
+</div>
+
+<div id="viewModal" class="modal">
+    <div class="modal-content">
+        <h3 id="modal-title"></h3>
+        <div id="modal-board" class="board"></div>
+        <button onclick="closeModal()" class="btn-primary">ปิดหน้าต่าง</button>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyAId-pF0U0hUe6hOxBf5SZu4sBObk2FIIc",
+        authDomain: "binggocivil.firebaseapp.com",
+        databaseURL: "https://binggocivil-default-rtdb.firebaseio.com",
+        projectId: "binggocivil",
+        storageBucket: "binggocivil.firebasestorage.app",
+        messagingSenderId: "615822572602",
+        appId: "1:615822572602:web:5207b9a09174d41daf0903"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let currentUser = "";
+    let myBoardData = [];
+
+    function login() {
+        const name = document.getElementById('username').value.trim();
+        if (!name) return alert("กรุณาใส่ชื่อ!");
+        if (name === "meetng41civil") { showAdmin(); } 
+        else { currentUser = name; showGame(); }
+    }
+
+    function showGame() {
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('game-section').style.display = 'block';
+        document.getElementById('display-name').innerText = currentUser;
+        
+        const board = document.getElementById('bingo-board');
+        let nums = Array.from({length: 75}, (_, i) => i + 1).sort(() => Math.random() - 0.5);
+        
+        for (let i = 0; i < 25; i++) {
+            let val = (i === 12) ? "FREE" : nums[i];
+            myBoardData.push({ val: val, marked: (i === 12) });
+            
+            let cell = document.createElement('div');
+            cell.className = 'cell' + (i === 12 ? ' marked' : '');
+            cell.innerText = val;
+            cell.onclick = function() {
+                this.classList.toggle('marked');
+                myBoardData[i].marked = this.classList.contains('marked');
+            };
+            board.appendChild(cell);
+        }
+    }
+
+    function checkBingo() {
+        if(confirm("ยืนยันการส่ง BINGO ไปให้แอดมิน?")) {
+            db.ref('winners').push({
+                name: currentUser,
+                time: new Date().toLocaleTimeString('th-TH'),
+                board: myBoardData // ส่งข้อมูลตารางที่ผู้เล่นกดติ๊กไว้ไปด้วย
+            });
+            alert("ส่งข้อมูลแล้ว!");
+        }
+    }
+
+    function showAdmin() {
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('admin-section').style.display = 'block';
+        
+        db.ref('winners').on('value', (snapshot) => {
+            const list = document.getElementById('winner-list');
+            list.innerHTML = "";
+            snapshot.forEach((child) => {
+                const data = child.val();
+                const item = document.createElement('div');
+                item.className = 'winner-item';
+                item.innerHTML = `
+                    <div><b>${data.name}</b><br><small>${data.time}</small></div>
+                    <button class="btn-view" onclick='viewBoard(${JSON.stringify(data)})'>ดูตาราง</button>
+                `;
+                list.appendChild(item);
+            });
+        });
+    }
+
+    function viewBoard(data) {
+        document.getElementById('modal-title').innerText = "ตารางของ " + data.name;
+        const mBoard = document.getElementById('modal-board');
+        mBoard.innerHTML = "";
+        data.board.forEach(item => {
+            const cell = document.createElement('div');
+            cell.className = 'cell' + (item.marked ? ' marked' : '');
+            cell.innerText = item.val;
+            mBoard.appendChild(cell);
+        });
+        document.getElementById('viewModal').style.display = 'flex';
+    }
+
+    function closeModal() { document.getElementById('viewModal').style.display = 'none'; }
+    function resetGame() { if(confirm("ล้างข้อมูลทั้งหมด?")) db.ref('winners').remove(); }
+</script>
+</body>
+</html>
