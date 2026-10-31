@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BingGo Meeting CE&STT</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --navy-blue: #001a33; 
+            --gold-accent: #d4af37; 
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --light-gray: #f8f9fa;
+        }
+
+        body {
+            font-family: 'Kanit', sans-serif;
+            background-color: var(--navy-blue);
+            margin: 0; padding: 10px;
+            display: flex; justify-content: center; align-items: center; min-height: 100vh;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.98);
+            padding: 25px; border-radius: 20px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+            width: 100%; max-width: 480px; text-align: center;
+            border: 3px solid var(--gold-accent);
+        }
+
+        .header-section { margin-bottom: 20px; }
+        .main-title { font-size: 2.2rem; font-weight: 800; color: var(--gold-accent); margin: 0; }
+
+        .flex-header {
+            display: flex; align-items: center; justify-content: center;
+            margin-top: 15px; gap: 15px; text-align: left;
+        }
+
+        .logo-img {
+            width: 75px; height: 75px; object-fit: cover;
+            border-radius: 12px; border: 2px solid var(--gold-accent); background: #fff;
+        }
+
+        .thank-you-text { font-size: 0.85rem; color: var(--navy-blue); flex: 1; }
+
+        .board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 15px 0; }
+
+        .cell {
+            aspect-ratio: 1/1; background: var(--light-gray); border: 1px solid #ddd;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem; font-weight: bold; cursor: pointer; border-radius: 8px;
+            color: var(--navy-blue); transition: 0.2s; user-select: none;
+        }
+
+        .cell.marked { background-color: var(--danger-color) !important; color: white !important; }
+        .cell.free-slot { background-color: var(--gold-accent); color: white; font-size: 0.7rem; }
+
+        input {
+            width: 90%; padding: 12px; margin-bottom: 12px; border-radius: 10px;
+            border: 2px solid #ddd; font-size: 1.1rem; text-align: center; outline: none;
+        }
+
+        button { padding: 12px 20px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:active { transform: scale(0.98); }
+        .btn-start { background: var(--navy-blue); color: white; width: 95%; margin-top: 5px; }
+        .btn-bingo { background: var(--success-color); color: white; font-size: 1.6rem; width: 100%; box-shadow: 0 5px 15px rgba(40,167,69,0.3); }
+        .btn-outline { background: transparent; border: 2px solid var(--navy-blue); color: var(--navy-blue); margin-top: 15px; width: 80%; }
+
+        /* Waiting Screen */
+        .summary-card {
+            background: #fff; border: 2px dashed var(--success-color);
+            padding: 20px; border-radius: 15px; margin: 20px 0;
+        }
+
+        .winner-item {
+            background:#fff; padding:12px; margin:10px 0; border-radius:10px; 
+            display:flex; justify-content:space-between; align-items:center; 
+            border-left:8px solid var(--success-color); box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            text-align: left;
+        }
+
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-section">
+        <h1 class="main-title">BINGO<br>MEETING CE&STT</h1>
+        <div class="flex-header">
+            <img src="https://i.postimg.cc/PJWTp6WW/loko-41p.png" onerror="this.src='https://via.placeholder.com/75'" class="logo-img"> 
+            <div class="thank-you-text">
+                ขอขอบคุณทุกท่านที่มาร่วมงาน<br>
+                <strong>Meeting 41 ปี วิศวกรรมโยธา</strong><br>
+                ขอให้ทุกท่านสนุกกับค่ำคืนนี้
+            </div>
+        </div>
+    </div>
+
+    <hr style="border:0; border-top:2px solid var(--gold-accent); margin: 15px 0;">
+
+    <div id="login-section">
+        <input type="text" id="username" placeholder="ระบุชื่อ-นามสกุล">
+        <input type="text" id="userbatch" placeholder="ระบุรุ่น (เช่น CE1-STT1)">
+        <button class="btn-start" onclick="login()">เริ่มเล่นเกม</button>
+    </div>
+
+    <div id="game-section" style="display: none;">
+        <p style="margin:0; color:var(--navy-blue); font-size: 1.1rem;">ผู้เล่น: <b id="display-info" style="color:var(--danger-color)"></b></p>
+        <div id="bingo-board" class="board"></div>
+        <button id="bingo-submit-btn" class="btn-bingo" onclick="tryBingo()">BINGO! 🏆</button>
+    </div>
+
+    <div id="waiting-section" style="display: none;">
+        <h2 style="color: var(--success-color); margin-bottom: 5px;">บันทึกข้อมูลแล้ว!</h2>
+        <p style="margin-top: 0;">รอประกาศผลผู้ชนะจากกรรมการ</p>
+        
+        <div class="summary-card">
+            <span style="color: #666; font-size: 0.9rem;">ข้อมูลของคุณ</span><br>
+            <b id="wait-display-name" style="font-size: 1.3rem; color: var(--navy-blue);"></b><br>
+            <span id="wait-display-batch" style="color: var(--danger-color); font-weight: bold;"></span>
+        </div>
+
+        <button class="btn-outline" onclick="goToLogin()">กลับหน้าล็อกอิน</button>
+    </div>
+
+    <div id="admin-section" style="display: none;">
+        <h2 style="color:var(--danger-color)">Admin Dashboard</h2>
+        <div id="winner-list"></div>
+        <button onclick="resetGame()" style="background:#666; color:white; margin-top:20px; width:100%;">ล้างข้อมูลผู้ชนะทั้งหมด</button>
+        <button class="btn-outline" onclick="location.reload()">กลับหน้าแรก</button>
+    </div>
+</div>
+
+<div id="viewModal" class="modal">
+    <div style="background:white; padding:25px; border-radius:20px; width:90%; max-width:400px;">
+        <h3 id="modal-title" style="margin-top:0; color:var(--navy-blue)"></h3>
+        <div id="modal-board" class="board"></div>
+        <button onclick="document.getElementById('viewModal').style.display='none'" style="width:100%; background:var(--navy-blue); color:white; padding:10px; border-radius:10px; font-weight:bold;">ปิดหน้าต่าง</button>
+    </div>
+</div>
+
+<audio id="bingoSound" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyAId-pF0U0hUe6hOxBf5SZu4sBObk2FIIc",
+        authDomain: "binggocivil.firebaseapp.com",
+        databaseURL: "https://binggocivil-default-rtdb.firebaseio.com",
+        projectId: "binggocivil",
+        storageBucket: "binggocivil.firebasestorage.app",
+        messagingSenderId: "615822572602",
+        appId: "1:615822572602:web:5207b9a09174d41daf0903"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let currentUser = "";
+    let currentBatch = "";
+    let cellsData = [];
+
+    function login() {
+        const name = document.getElementById('username').value.trim();
+        const batch = document.getElementById('userbatch').value.trim();
+        
+        if (name === "meeting41civil") { 
+            showAdmin(); 
+            return;
+        }
+
+        if (!name || !batch) return alert("กรุณากรอกทั้งชื่อและรุ่นครับ!");
+        
+        currentUser = name;
+        currentBatch = batch;
+        
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('game-section').style.display = 'block';
+        document.getElementById('display-info').innerText = `${currentUser} (${currentBatch})`;
+        generateBoard();
+    }
+
+    function generateBoard() {
+        const board = document.getElementById('bingo-board');
+        board.innerHTML = "";
+        cellsData = []; // Clear old data
+        let nums = Array.from({length: 75}, (_, i) => i + 1).sort(() => Math.random() - 0.5);
+        for (let i = 0; i < 25; i++) {
+            let isFree = (i === 12);
+            let val = isFree ? "FREE" : nums[i];
+            cellsData.push({ val: val, marked: isFree });
+            let cell = document.createElement('div');
+            cell.className = 'cell' + (isFree ? ' marked free-slot' : '');
+            cell.innerText = val;
+            if (!isFree) {
+                cell.onclick = function() {
+                    this.classList.toggle('marked');
+                    cellsData[i].marked = this.classList.contains('marked');
+                };
+            }
+            board.appendChild(cell);
+        }
+    }
+
+    function tryBingo() {
+        const b = cellsData.map(c => c.marked);
+        const lines = [[0,1,2,3,4],[5,6,7,8,9],[10,11,12,13,14],[15,16,17,18,19],[20,21,22,23,24],[0,5,10,15,20],[1,6,11,16,21],[2,7,12,17,22],[3,8,13,18,23],[4,9,14,19,24],[0,6,12,18,24],[4,8,12,16,20]];
+        const isWin = lines.some(line => line.every(idx => b[idx]));
+
+        if (!isWin) return alert("ยังไม่ครบแถวบิงโกครับ ตรวจสอบอีกครั้งนะ!");
+        
+        if (confirm("ยืนยันการส่งบิงโกให้กรรมการ?")) {
+            db.ref('winners').push({
+                name: currentUser,
+                batch: currentBatch,
+                time: new Date().toLocaleTimeString('th-TH'),
+                board: cellsData,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            }).then(() => {
+                showWaitingScreen();
+            });
+        }
+    }
+
+    function showWaitingScreen() {
+        document.getElementById('game-section').style.display = 'none';
+        document.getElementById('waiting-section').style.display = 'block';
+        document.getElementById('wait-display-name').innerText = currentUser;
+        document.getElementById('wait-display-batch').innerText = currentBatch;
+    }
+
+    function goToLogin() {
+        // ล้างค่าและกลับไปหน้าล็อกอิน
+        document.getElementById('username').value = "";
+        document.getElementById('userbatch').value = "";
+        document.getElementById('waiting-section').style.display = 'none';
+        document.getElementById('login-section').style.display = 'block';
+    }
+
+    function showAdmin() {
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('admin-section').style.display = 'block';
+        db.ref('winners').orderByChild('timestamp').on('value', (snapshot) => {
+            const list = document.getElementById('winner-list');
+            list.innerHTML = "";
+            snapshot.forEach((child) => {
+                const data = child.val();
+                const item = document.createElement('div');
+                item.className = 'winner-item';
+                item.innerHTML = `
+                    <div><b>${data.name} (${data.batch})</b><br><small>${data.time}</small></div>
+                    <button onclick='viewBoard(${JSON.stringify(data)})' style="background:var(--navy-blue); color:white; border-radius:8px;">ตรวจตาราง</button>
+                `;
+                list.prepend(item);
+            });
+            if (snapshot.numChildren() > 0) document.getElementById('bingoSound').play().catch(()=>{});
+        });
+    }
+
+    function viewBoard(data) {
+        document.getElementById('modal-title').innerText = "ตารางของ " + data.name + " (" + data.batch + ")";
+        const mBoard = document.getElementById('modal-board');
+        mBoard.innerHTML = "";
+        data.board.forEach(item => {
+            let c = document.createElement('div');
+            c.className = 'cell' + (item.marked ? ' marked' : '') + (item.val === 'FREE' ? ' free-slot' : '');
+            c.innerText = item.val;
+            mBoard.appendChild(c);
+        });
+        document.getElementById('viewModal').style.display = 'flex';
+    }
+
+    function resetGame() { if(confirm("ล้างข้อมูลผู้ชนะทั้งหมด?")) db.ref('winners').remove(); }
+</script>
+</body>
+</html>
